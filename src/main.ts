@@ -69,11 +69,28 @@ axios.interceptors.request.use(
 // 添加响应拦截器
 axios.interceptors.response.use(
   response => {
-    console.log('响应成功:', {
-      url: response.config.url,
-      status: response.status,
-      data: response.data
-    })
+    console.log('原始响应数据:', response)
+
+    // 处理 allorigins 代理的响应
+    if (response.config.baseURL?.includes('allorigins.win')) {
+      // 如果是 GET 请求，数据直接在 response.data 中
+      if (response.config.method?.toLowerCase() === 'get') {
+        console.log('处理 GET 响应:', response.data)
+        return { ...response, data: response.data }
+      }
+      // 如果是 POST 请求，需要解析 response.data.body
+      else {
+        try {
+          const parsedData = JSON.parse(response.data.body || '{}')
+          console.log('处理 POST 响应:', parsedData)
+          return { ...response, data: parsedData }
+        } catch (error) {
+          console.error('解析响应数据失败:', error)
+          return response
+        }
+      }
+    }
+
     return response
   },
   error => {
