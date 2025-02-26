@@ -177,7 +177,7 @@ const serverStatus = ref<'checking' | 'online' | 'offline'>('checking')
 const checkServerStatus = async () => {
   try {
     // 尝试请求一个简单的API端点
-    await axios.get('/api/health', { timeout: 5000 })
+    await axios.get('/health', { timeout: 5000 })
     serverStatus.value = 'online'
     // 更新全局服务器状态
     import('../router').then(({ setServerOffline }) => {
@@ -210,7 +210,7 @@ const handleLogin = async () => {
           return
         }
 
-        const response = await axios.post('/api/auth/login', {
+        const response = await axios.post('/auth/login', {
           username: loginForm.username,
           password: loginForm.password
         })

@@ -186,7 +186,7 @@ const loading = ref(true)
 const fetchSubmissions = async () => {
   try {
     console.log('开始获取提交记录...')
-    const response = await axios.get('/api/submissions/user')
+    const response = await axios.get('/submissions/user')
     console.log('获取提交记录成功:', response.data)
     submissionList.value = response.data
   } catch (error: any) {
@@ -200,7 +200,7 @@ const fetchSubmissions = async () => {
 // 检查服务器状态
 const checkServerStatus = async () => {
   try {
-    await axios.get('/api/health', { timeout: 5000 })
+    await axios.get('/health', { timeout: 5000 })
     serverStatus.value = 'online'
     setServerOffline(false)
     return true
@@ -230,7 +230,7 @@ const fetchAssignments = async () => {
     }
     
     // 如果在线，正常获取数据
-    const response = await axios.get('/api/assignments')
+    const response = await axios.get('/assignments')
     availableAssignments.value = response.data
     
     // 缓存数据到本地存储
@@ -393,7 +393,7 @@ const handleSubmit = async () => {
         }
         
         console.log('发送请求...')
-        console.log('请求URL:', `/api/submissions/assignment/${assignmentId}`)
+        console.log('请求URL:', `/submissions/assignment/${assignmentId}`)
         console.log('请求方法: POST')
         console.log('请求头:', {
           'Content-Type': 'multipart/form-data',
@@ -401,7 +401,7 @@ const handleSubmit = async () => {
         })
         
         const response = await axios.post(
-          `/api/submissions/assignment/${assignmentId}`,
+          `/submissions/assignment/${assignmentId}`,
           formData,
           {
             headers: {
@@ -451,7 +451,7 @@ const viewHomework = async (submission: HomeworkSubmission) => {
     
     // 先获取提交记录详情
     console.log('获取提交记录详情...');
-    const detailResponse = await axios.get(`/api/submissions/${submission.id}`);
+    const detailResponse = await axios.get(`/submissions/${submission.id}`);
     const submissionDetail = detailResponse.data;
     console.log('提交记录详情:', submissionDetail);
     
@@ -473,10 +473,10 @@ const viewHomework = async (submission: HomeworkSubmission) => {
     });
     
     console.log('开始下载文件...');
-    console.log('请求URL:', `/api/submissions/${submission.id}/file`);
+    console.log('请求URL:', `/submissions/${submission.id}/file`);
     
     // 使用fetch API获取文件
-    const response = await fetch(`/api/submissions/${submission.id}/file`, {
+    const response = await fetch(`/submissions/${submission.id}/file`, {
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('token')}`
       }
@@ -528,7 +528,7 @@ const deleteHomework = async (submission: HomeworkSubmission) => {
     type: 'warning'
   }).then(async () => {
     try {
-      await axios.delete(`/api/submissions/${submission.id}`)
+      await axios.delete(`/submissions/${submission.id}`)
       submissionList.value = submissionList.value.filter(item => item.id !== submission.id)
       ElMessage.success('删除成功')
     } catch (error: any) {
