@@ -177,7 +177,7 @@ const serverStatus = ref<'checking' | 'online' | 'offline'>('checking')
 const checkServerStatus = async () => {
   try {
     // 尝试请求一个简单的API端点
-    await axios.get('/health', { timeout: 5000 })
+    await axios.get('/api/health', { timeout: 5000 })
     serverStatus.value = 'online'
     // 更新全局服务器状态
     import('../router').then(({ setServerOffline }) => {
@@ -204,13 +204,12 @@ const handleLogin = async () => {
   await loginFormRef.value.validate(async (valid) => {
     if (valid) {
       try {
-        // 如果服务器离线，显示提示
         if (serverStatus.value === 'offline') {
           ElMessage.warning('服务器连接失败，无法登录。请稍后再试。')
           return
         }
 
-        const response = await axios.post('/auth/login', {
+        const response = await axios.post('/api/auth/login', {
           username: loginForm.username,
           password: loginForm.password
         })
@@ -224,8 +223,8 @@ const handleLogin = async () => {
           router.push(response.data.isAdmin ? '/admin' : '/dashboard')
         }
       } catch (error: any) {
+        console.error('登录错误:', error)
         if (!error.response) {
-          // 网络错误或服务器未响应
           ElMessage.error('无法连接到服务器，请检查网络连接')
           serverStatus.value = 'offline'
         } else {

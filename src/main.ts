@@ -23,28 +23,18 @@ axios.interceptors.request.use(
     // 处理 allorigins 代理请求
     if (config.baseURL?.includes('allorigins.win')) {
       const apiPath = config.url || ''
-      const originalUrl = `http://134.175.229.249:8080/api${apiPath}`
+      // 确保所有请求都有 /api 前缀
+      const cleanPath = apiPath.startsWith('/api') ? apiPath : `/api${apiPath}`
+      const originalUrl = `http://134.175.229.249:8080${cleanPath}`
       
-      // 对于 GET 请求
       if (config.method?.toLowerCase() === 'get') {
-        config.url = ''  // 清空 url，因为完整 url 将作为参数传递
+        config.url = ''
         config.params = { url: originalUrl }
-      } 
-      // 对于 POST/PUT/DELETE 请求
-      else {
-        config.url = '/post'  // allorigins 的 POST 端点
+      } else {
+        config.url = '/raw'
         config.params = { url: originalUrl }
         config.headers['Content-Type'] = 'application/json'
-        // 保存原始数据
-        const originalData = config.data
-        // 重构请求数据
-        config.data = {
-          method: config.method,
-          body: JSON.stringify(originalData),
-          headers: {
-            'Content-Type': 'application/json'
-          }
-        }
+        config.data = JSON.stringify(config.data)
       }
     }
 
@@ -73,48 +63,23 @@ axios.interceptors.response.use(
 
     // 处理 allorigins 代理的响应
     if (response.config.baseURL?.includes('allorigins.win')) {
-      // 如果是 GET 请求，数据直接在 response.data 中
-      if (response.config.method?.toLowerCase() === 'get') {
-        console.log('处理 GET 响应:', response.data)
-        return { ...response, data: response.data }
-      }
-      // 如果是 POST 请求，需要解析 response.data.body
-      else {
-        try {
-          const parsedData = JSON.parse(response.data.body || '{}')
-          console.log('处理 POST 响应:', parsedData)
-          return { ...response, data: parsedData }
-        } catch (error) {
-          console.error('解析响应数据失败:', error)
-          return response
-        }
+      try {
+        // 尝试解析响应数据
+        const responseData = typeof response.data === 'string' 
+          ? JSON.parse(response.data)
+          : response.data
+        console.log('处理后的响应数据:', responseData)
+        return { ...response, data: responseData }
+      } catch (error) {
+        console.error('解析响应数据失败:', error)
+        return response
       }
     }
 
     return response
   },
   error => {
-    console.error('响应错误:', {
-      url: error.config?.url,
-      status: error.response?.status,
-      data: error.response?.data
-    })
-    
-    if (error.code === 'ECONNABORTED') {
-      // 请求超时
-      console.error('请求超时，服务器可能不可用')
-    } else if (!error.response) {
-      // 网络错误或服务器未响应
-      console.error('无法连接到服务器，请检查网络连接或服务器状态')
-    } else if (error.response?.status === 401 || error.response?.status === 403) {
-      // 清除本地存储
-      localStorage.removeItem('token')
-      localStorage.removeItem('isAdmin')
-      localStorage.removeItem('username')
-      // 跳转到登录页
-      router.push('/')
-    }
-    
+    console.error('响应错误:', error)
     return Promise.reject(error)
   }
 )
