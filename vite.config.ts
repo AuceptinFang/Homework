@@ -10,11 +10,11 @@ export default defineConfig({
     port: 3000, // 修改为非特权端口
     proxy: {
       '/api': {
-        target: 'http://134.175.229.249:8080', // 云服务器地址
+        target: 'http://134.175.229.249:8080',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, '/api'), // 保持 /api 前缀
-        secure: false, // 允许无效证书
-        ws: true // 支持 websocket
+        rewrite: (path) => path.replace(/^\/api/, '/api'),
+        secure: false,
+        ws: true
       }
     }
   },
