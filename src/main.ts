@@ -17,15 +17,47 @@ axios.interceptors.request.use(
   config => {
     const token = localStorage.getItem('token')
     if (token) {
-      // 确保token格式正确
       config.headers.Authorization = `Bearer ${token}`
     }
+
+    // 处理 allorigins 代理请求
+    if (config.baseURL?.includes('allorigins.win')) {
+      const apiPath = config.url || ''
+      const originalUrl = `http://134.175.229.249:8080/api${apiPath}`
+      
+      // 对于 GET 请求
+      if (config.method?.toLowerCase() === 'get') {
+        config.url = ''  // 清空 url，因为完整 url 将作为参数传递
+        config.params = { url: originalUrl }
+      } 
+      // 对于 POST/PUT/DELETE 请求
+      else {
+        config.url = '/post'  // allorigins 的 POST 端点
+        config.params = { url: originalUrl }
+        config.headers['Content-Type'] = 'application/json'
+        // 保存原始数据
+        const originalData = config.data
+        // 重构请求数据
+        config.data = {
+          method: config.method,
+          body: JSON.stringify(originalData),
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }
+      }
+    }
+
+    // 打印请求信息用于调试
     console.log('发送请求:', {
+      baseURL: config.baseURL,
       url: config.url,
       method: config.method,
       headers: config.headers,
-      data: config.data
+      data: config.data,
+      params: config.params
     })
+
     return config
   },
   error => {
