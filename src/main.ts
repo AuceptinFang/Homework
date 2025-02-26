@@ -10,7 +10,6 @@ import axios from 'axios'
 // 配置axios默认值
 axios.defaults.baseURL = import.meta.env.VITE_API_BASE_URL
 axios.defaults.headers.common['Content-Type'] = 'application/json'
-axios.defaults.headers.common['x-cors-api-key'] = 'temp_f3fb5c6ea19c27d7d7ce0f951f9a1c13' // CORS.sh API key
 axios.defaults.timeout = 10000 // 10秒超时
 
 // 添加请求拦截器
