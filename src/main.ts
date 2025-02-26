@@ -8,8 +8,7 @@ import router from './router'
 import axios from 'axios'
 
 // 配置axios默认值
-// 使用相对路径或环境变量，以便在不同环境中灵活配置
-axios.defaults.baseURL = import.meta.env.VITE_API_BASE_URL || '/api'
+axios.defaults.baseURL = import.meta.env.VITE_API_BASE_URL
 axios.defaults.headers.common['Content-Type'] = 'application/json'
 axios.defaults.timeout = 10000 // 10秒超时
 
