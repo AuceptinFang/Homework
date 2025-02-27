@@ -41,7 +41,7 @@ const router = useRouter()
 
 const checkServerStatus = async () => {
   try {
-    await axios.get('/api/health', { timeout: 5000 })
+    await axios.get('/health', { timeout: 5000 })
     ElMessage.success('服务器连接恢复')
     setServerOffline(false)
     router.push('/')

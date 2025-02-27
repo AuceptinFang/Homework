@@ -23,6 +23,18 @@ axios.interceptors.request.use(
     // 为 proxy.cors.sh 添加必要的头部
     if (config.baseURL?.includes('proxy.cors.sh')) {
       config.headers['X-Requested-With'] = 'XMLHttpRequest'
+      
+      // 处理 proxy.cors.sh 代理请求的路径问题
+      const apiPath = config.url || ''
+      
+      // 移除开头的 /api 前缀，因为 baseURL 已经包含了 /api
+      if (apiPath.startsWith('/api/')) {
+        config.url = apiPath.substring(4) // 移除 '/api'
+        console.log('移除重复的 /api 前缀，新路径:', config.url)
+      } else if (apiPath.startsWith('/api')) {
+        config.url = apiPath.substring(4) // 移除 '/api'
+        console.log('移除重复的 /api 前缀，新路径:', config.url)
+      }
     }
 
     // 处理 allorigins 代理请求
@@ -41,12 +53,6 @@ axios.interceptors.request.use(
         config.headers['Content-Type'] = 'application/json'
         config.data = JSON.stringify(config.data)
       }
-    }
-    
-    // 处理 proxy.cors.sh 代理请求
-    if (config.baseURL?.includes('proxy.cors.sh')) {
-      // proxy.cors.sh 不需要特殊处理路径，它会直接转发请求
-      // 只需确保添加了 X-Requested-With 头部
     }
 
     // 打印请求信息用于调试
