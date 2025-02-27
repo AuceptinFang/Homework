@@ -20,6 +20,11 @@ axios.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`
     }
 
+    // 为 proxy.cors.sh 添加必要的头部
+    if (config.baseURL?.includes('proxy.cors.sh')) {
+      config.headers['X-Requested-With'] = 'XMLHttpRequest'
+    }
+
     // 处理 allorigins 代理请求
     if (config.baseURL?.includes('allorigins.win')) {
       const apiPath = config.url || ''
@@ -36,6 +41,12 @@ axios.interceptors.request.use(
         config.headers['Content-Type'] = 'application/json'
         config.data = JSON.stringify(config.data)
       }
+    }
+    
+    // 处理 proxy.cors.sh 代理请求
+    if (config.baseURL?.includes('proxy.cors.sh')) {
+      // proxy.cors.sh 不需要特殊处理路径，它会直接转发请求
+      // 只需确保添加了 X-Requested-With 头部
     }
 
     // 打印请求信息用于调试
@@ -81,6 +92,30 @@ axios.interceptors.response.use(
       } catch (error) {
         console.error('解析响应数据失败:', error)
         return response
+      }
+    }
+    
+    // 处理 proxy.cors.sh 代理的响应
+    if (response.config.baseURL?.includes('proxy.cors.sh')) {
+      try {
+        // proxy.cors.sh 通常会保留原始响应的 Content-Type
+        // 但我们仍然检查一下，以防万一
+        let responseData = response.data;
+        
+        if (typeof responseData === 'string' && response.headers['content-type']?.includes('text/plain')) {
+          try {
+            responseData = JSON.parse(responseData);
+            console.log('成功将 proxy.cors.sh 响应解析为 JSON:', responseData);
+          } catch (parseError) {
+            console.error('解析 proxy.cors.sh 响应失败:', parseError);
+          }
+        }
+        
+        console.log('处理后的 proxy.cors.sh 响应:', responseData);
+        return { ...response, data: responseData };
+      } catch (error) {
+        console.error('处理 proxy.cors.sh 响应失败:', error);
+        return response;
       }
     }
 
