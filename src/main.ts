@@ -63,11 +63,19 @@ axios.interceptors.response.use(
 
     // 处理 allorigins 代理的响应
     if (response.config.baseURL?.includes('allorigins.win')) {
-      try {
+      try { 
         // 尝试解析响应数据
-        const responseData = typeof response.data === 'string' 
-          ? JSON.parse(response.data)
-          : response.data
+        let responseData = response.data;
+        
+        // 如果是字符串（text/plain），尝试解析为 JSON
+        if (typeof responseData === 'string') {
+          try {
+            responseData = JSON.parse(responseData);
+            console.log('成功将 text/plain 解析为 JSON:', responseData);
+          } catch (parseError) {
+            console.error('解析 text/plain 为 JSON 失败:', parseError);
+          }
+        }
         console.log('处理后的响应数据:', responseData)
         return { ...response, data: responseData }
       } catch (error) {
@@ -79,7 +87,7 @@ axios.interceptors.response.use(
     return response
   },
   error => {
-    console.error('响应错误:', error)
+    console.error('错误:', error)
     return Promise.reject(error)
   }
 )
