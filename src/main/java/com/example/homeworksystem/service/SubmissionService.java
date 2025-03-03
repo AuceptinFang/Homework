@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
+import java.util.Collections;
 
 @Service
 public class SubmissionService {
@@ -65,7 +66,13 @@ public class SubmissionService {
     }
 
     public List<Submission> getSubmissionsByAssignment(Assignment assignment) {
-        return submissionRepository.findByAssignmentOrderBySubmitTimeDesc(assignment);
+        if (assignment == null) {
+            System.out.println("警告: 传入的作业为null");
+            return Collections.emptyList();
+        }
+        
+        List<Submission> submissions = submissionRepository.findByAssignmentOrderBySubmitTimeDesc(assignment);
+        return submissions;
     }
 
     public List<Submission> getSubmissionsByUser(User user) {

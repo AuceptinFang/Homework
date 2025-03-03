@@ -134,6 +134,7 @@ public class UserService implements UserDetailsService {
      * @return 学生用户列表
      */
     public List<User> getAllStudents() {
-        return userRepository.findByIsAdminFalse();
+        List<User> students = userRepository.findByIsAdminFalse();
+        return students;
     }
 }

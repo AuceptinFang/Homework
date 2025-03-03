@@ -52,27 +52,36 @@ public class SubmissionController {
         Authentication authentication
     ) {
         try {
+            System.out.println("\n========== 开始获取作业提交情况 ==========");
+            System.out.println("作业ID: " + assignmentId);
+            
             // 检查权限
             String username = authentication.getName();
             User user = userService.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("用户不存在"));
 
             if (!user.isAdmin()) {
+                System.out.println("权限检查: 失败 - 用户 " + username + " 不是管理员");
                 return ResponseEntity.status(403)
                     .body(Map.of("error", "没有权限查看提交情况"));
             }
+            System.out.println("权限检查: 通过 - 用户 " + username + " 是管理员");
 
             Assignment assignment = assignmentService.getAssignment(assignmentId);
             if (assignment == null) {
+                System.out.println("作业检查: 失败 - 作业ID " + assignmentId + " 不存在");
                 return ResponseEntity.status(404)
                     .body(Map.of("error", "作业不存在"));
             }
+            System.out.println("作业检查: 通过 - 找到作业 '" + assignment.getTitle() + "'");
 
             // 获取所有学生用户
             List<User> allUsers = userService.getAllStudents();
+            System.out.println("学生总数: " + allUsers.size() + " 名");
             
             // 获取该作业的所有提交记录
             List<Submission> submissions = submissionService.getSubmissionsByAssignment(assignment);
+            System.out.println("提交记录总数: " + submissions.size() + " 条");
             
             // 创建一个Map，用于快速查找用户的提交记录
             Map<Long, Submission> submissionMap = new HashMap<>();
@@ -82,6 +91,7 @@ public class SubmissionController {
             
             // 创建结果列表
             List<Map<String, Object>> result = new ArrayList<>();
+            int submittedCount = 0;
             
             // 为每个用户创建一个结果项
             for (User student : allUsers) {
@@ -92,7 +102,10 @@ public class SubmissionController {
                 item.put("userId", student.getId());
                 
                 // 检查用户是否有提交记录
-                if (submissionMap.containsKey(student.getId())) {
+                boolean hasSubmission = submissionMap.containsKey(student.getId());
+                
+                if (hasSubmission) {
+                    submittedCount++;
                     Submission submission = submissionMap.get(student.getId());
                     item.put("submitted", true);
                     item.put("submitTime", submission.getSubmitTime());
@@ -110,8 +123,12 @@ public class SubmissionController {
                 result.add(item);
             }
             
+            System.out.println("提交统计: " + submittedCount + " 人已提交, " + 
+                              (allUsers.size() - submittedCount) + " 人未提交");
+            System.out.println("========== 获取作业提交情况完成 ==========\n");
             return ResponseEntity.ok(result);
         } catch (Exception e) {
+            System.err.println("获取提交情况时发生错误: " + e.getMessage());
             e.printStackTrace();
             return ResponseEntity.status(400)
                 .body(Map.of("error", e.getMessage()));
