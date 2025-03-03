@@ -75,9 +75,9 @@ public class SubmissionController {
             List<Submission> submissions = submissionService.getSubmissionsByAssignment(assignment);
             
             // 创建一个Map，用于快速查找用户的提交记录
-            Map<String, Submission> submissionMap = new HashMap<>();
+            Map<Long, Submission> submissionMap = new HashMap<>();
             for (Submission submission : submissions) {
-                submissionMap.put(submission.getSubmittedBy().getUsername(), submission);
+                submissionMap.put(submission.getSubmittedBy().getId(), submission);
             }
             
             // 创建结果列表
@@ -87,13 +87,16 @@ public class SubmissionController {
             for (User student : allUsers) {
                 Map<String, Object> item = new HashMap<>();
                 item.put("username", student.getUsername());
+                item.put("realName", student.getRealName());
+                item.put("studentId", student.getStudentId());
+                item.put("userId", student.getId());
                 
                 // 检查用户是否有提交记录
-                if (submissionMap.containsKey(student.getUsername())) {
-                    Submission submission = submissionMap.get(student.getUsername());
+                if (submissionMap.containsKey(student.getId())) {
+                    Submission submission = submissionMap.get(student.getId());
                     item.put("submitted", true);
                     item.put("submitTime", submission.getSubmitTime());
-                    item.put("status", submission.getStatus());
+                    item.put("status", "submitted");
                     item.put("filePath", submission.getFilePath());
                     item.put("originalFilename", submission.getOriginalFilename());
                     item.put("description", submission.getDescription());
@@ -369,11 +372,24 @@ public class SubmissionController {
         @PathVariable Long submissionId,
         Authentication authentication
     ) {
-        String username = authentication.getName();
-        User user = userService.findByUsername(username)
-            .orElseThrow(() -> new RuntimeException("用户不存在"));
-        submissionService.deleteSubmission(submissionId, user);
-        return ResponseEntity.ok().build();
+        try {
+            // 获取当前用户
+            String username = authentication.getName();
+            User user = userService.findByUsername(username)
+                .orElseThrow(() -> new RuntimeException("用户不存在"));
+
+            // 删除提交记录
+            submissionService.deleteSubmission(submissionId, user);
+            
+            return ResponseEntity.ok(Map.of(
+                "success", true,
+                "message", "提交记录已删除"
+            ));
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(400)
+                .body(Map.of("error", "删除提交记录失败: " + e.getMessage()));
+        }
     }
 
     @PutMapping("/{submissionId}/feedback")

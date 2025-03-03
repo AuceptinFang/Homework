@@ -102,14 +102,6 @@ public class SubmissionService {
             throw new RuntimeException("文件大小不能超过20MB");
         }
 
-        // 检查是否已有提交记录，如果有则删除旧文件
-        Optional<Submission> existingSubmission = submissionRepository.findByAssignmentAndSubmittedBy(assignment, user);
-        if (existingSubmission.isPresent()) {
-            System.out.println("发现已有提交记录，删除旧文件: " + existingSubmission.get().getFilePath());
-            deleteSubmissionFile(existingSubmission.get());
-            submissionRepository.delete(existingSubmission.get());
-        }
-
         // 获取原始文件名
         String originalFilename = file.getOriginalFilename();
         System.out.println("原始文件名: " + originalFilename);
@@ -144,7 +136,7 @@ public class SubmissionService {
                 throw new RuntimeException("上传目录不可写: " + assignmentFolder);
             }
             
-            // 保存文件
+            // 保存文件，如果已存在则覆盖
             Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
             System.out.println("文件保存成功: " + filePath);
         } catch (IOException e) {
@@ -153,15 +145,30 @@ public class SubmissionService {
             throw new RuntimeException("保存文件失败: " + e.getMessage(), e);
         }
 
-        // 创建新的提交记录
-        Submission submission = new Submission();
-        submission.setAssignment(assignment);
-        submission.setSubmittedBy(user);
-        submission.setSubmitTime(LocalDateTime.now());
-        submission.setStatus("submitted");
-        submission.setFilePath(assignmentFolderName + "/" + uniqueFilename);
-        submission.setOriginalFilename(originalFilename); // 保存原始文件名
-        submission.setDescription(description);
+        // 检查是否已有提交记录，如果有则更新，否则创建新记录
+        Optional<Submission> existingSubmission = submissionRepository.findByAssignmentAndSubmittedBy(assignment, user);
+        Submission submission;
+        
+        if (existingSubmission.isPresent()) {
+            // 更新现有记录
+            submission = existingSubmission.get();
+            submission.setSubmitTime(LocalDateTime.now());
+            submission.setFilePath(assignmentFolderName + "/" + uniqueFilename);
+            submission.setOriginalFilename(originalFilename);
+            submission.setDescription(description);
+            System.out.println("更新现有提交记录，ID: " + submission.getId());
+        } else {
+            // 创建新的提交记录
+            submission = new Submission();
+            submission.setAssignment(assignment);
+            submission.setSubmittedBy(user);
+            submission.setSubmitTime(LocalDateTime.now());
+            submission.setStatus("submitted");
+            submission.setFilePath(assignmentFolderName + "/" + uniqueFilename);
+            submission.setOriginalFilename(originalFilename);
+            submission.setDescription(description);
+            System.out.println("创建新的提交记录");
+        }
 
         Submission savedSubmission = submissionRepository.save(submission);
         System.out.println("提交记录保存成功，ID: " + savedSubmission.getId());
@@ -179,8 +186,13 @@ public class SubmissionService {
             throw new RuntimeException("无权删除此提交");
         }
 
-        // 删除文件
-        deleteSubmissionFile(submission);
+        try {
+            // 尝试删除文件，但即使失败也继续删除记录
+            deleteSubmissionFile(submission);
+        } catch (Exception e) {
+            // 记录错误但不抛出异常
+            System.err.println("删除文件失败，但将继续删除记录: " + e.getMessage());
+        }
 
         // 删除记录
         submissionRepository.delete(submission);
@@ -204,7 +216,7 @@ public class SubmissionService {
         } catch (IOException e) {
             System.out.println("删除文件失败: " + e.getMessage());
             e.printStackTrace();
-            throw new RuntimeException("删除文件失败", e);
+            // 不抛出异常，让调用者决定如何处理
         }
     }
 
@@ -264,14 +276,6 @@ public class SubmissionService {
             throw new RuntimeException("该作业当前不允许提交");
         }
         
-        // 检查是否已有提交记录，如果有则删除旧文件
-        Optional<Submission> existingSubmission = submissionRepository.findByAssignmentAndSubmittedBy(assignment, user);
-        if (existingSubmission.isPresent()) {
-            System.out.println("发现已有提交记录，删除旧文件: " + existingSubmission.get().getFilePath());
-            deleteSubmissionFile(existingSubmission.get());
-            submissionRepository.delete(existingSubmission.get());
-        }
-        
         // 为作业创建一个子目录，文件夹名基于作业标题（经过清洗）
         String assignmentFolderName = sanitizeTitle(assignment.getTitle());
         Path assignmentFolder = this.uploadDir.resolve(assignmentFolderName);
@@ -287,13 +291,9 @@ public class SubmissionService {
         PdfUtil.imagesToPdf(imageFiles, pdfPath);
         System.out.println("图片已合并为PDF: " + pdfPath);
         
-        // 创建新的提交记录
-        Submission submission = new Submission();
-        submission.setAssignment(assignment);
-        submission.setSubmittedBy(user);
-        submission.setSubmitTime(LocalDateTime.now());
-        submission.setStatus("submitted");
-        submission.setFilePath(assignmentFolderName + "/" + pdfFilename);
+        // 检查是否已有提交记录，如果有则更新，否则创建新记录
+        Optional<Submission> existingSubmission = submissionRepository.findByAssignmentAndSubmittedBy(assignment, user);
+        Submission submission;
         
         // 保存原始文件名（多个图片用逗号分隔）
         StringBuilder originalFilenames = new StringBuilder();
@@ -301,9 +301,28 @@ public class SubmissionService {
             if (i > 0) originalFilenames.append(", ");
             originalFilenames.append(imageFiles.get(i).getOriginalFilename());
         }
-        submission.setOriginalFilename(originalFilenames.toString());
+        String originalFilenamesStr = originalFilenames.toString();
         
-        submission.setDescription(description);
+        if (existingSubmission.isPresent()) {
+            // 更新现有记录
+            submission = existingSubmission.get();
+            submission.setSubmitTime(LocalDateTime.now());
+            submission.setFilePath(assignmentFolderName + "/" + pdfFilename);
+            submission.setOriginalFilename(originalFilenamesStr);
+            submission.setDescription(description);
+            System.out.println("更新现有提交记录，ID: " + submission.getId());
+        } else {
+            // 创建新的提交记录
+            submission = new Submission();
+            submission.setAssignment(assignment);
+            submission.setSubmittedBy(user);
+            submission.setSubmitTime(LocalDateTime.now());
+            submission.setStatus("submitted");
+            submission.setFilePath(assignmentFolderName + "/" + pdfFilename);
+            submission.setOriginalFilename(originalFilenamesStr);
+            submission.setDescription(description);
+            System.out.println("创建新的提交记录");
+        }
         
         Submission savedSubmission = submissionRepository.save(submission);
         System.out.println("提交记录保存成功，ID: " + savedSubmission.getId());
@@ -331,19 +350,14 @@ public class SubmissionService {
             throw new RuntimeException("该作业当前不允许提交");
         }
         
-        // 检查是否已有提交记录，如果有则删除旧文件
-        Optional<Submission> existingSubmission = submissionRepository.findByAssignmentAndSubmittedBy(assignment, user);
-        if (existingSubmission.isPresent()) {
-            System.out.println("发现已有提交记录，删除旧文件: " + existingSubmission.get().getFilePath());
-            deleteSubmissionFile(existingSubmission.get());
-            submissionRepository.delete(existingSubmission.get());
-        }
-        
         // 为作业创建一个子目录，文件夹名基于作业标题（经过清洗）
         String assignmentFolderName = sanitizeTitle(assignment.getTitle());
         Path assignmentFolder = this.uploadDir.resolve(assignmentFolderName);
         Files.createDirectories(assignmentFolder);
         System.out.println("为作业 '" + assignment.getTitle() + "' 创建文件夹: " + assignmentFolder);
+        
+        // 检查是否已有提交记录
+        Optional<Submission> existingSubmission = submissionRepository.findByAssignmentAndSubmittedBy(assignment, user);
         
         // 如果只有一张图片，直接保存
         if (imageFiles.size() == 1) {
@@ -364,15 +378,28 @@ public class SubmissionService {
                 Files.copy(imageFile.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
                 System.out.println("图片已保存: " + filePath);
                 
-                // 创建新的提交记录
-                Submission submission = new Submission();
-                submission.setAssignment(assignment);
-                submission.setSubmittedBy(user);
-                submission.setSubmitTime(LocalDateTime.now());
-                submission.setStatus("submitted");
-                submission.setFilePath(assignmentFolderName + "/" + uniqueFilename);
-                submission.setOriginalFilename(originalFilename);
-                submission.setDescription(description);
+                Submission submission;
+                
+                if (existingSubmission.isPresent()) {
+                    // 更新现有记录
+                    submission = existingSubmission.get();
+                    submission.setSubmitTime(LocalDateTime.now());
+                    submission.setFilePath(assignmentFolderName + "/" + uniqueFilename);
+                    submission.setOriginalFilename(originalFilename);
+                    submission.setDescription(description);
+                    System.out.println("更新现有提交记录，ID: " + submission.getId());
+                } else {
+                    // 创建新的提交记录
+                    submission = new Submission();
+                    submission.setAssignment(assignment);
+                    submission.setSubmittedBy(user);
+                    submission.setSubmitTime(LocalDateTime.now());
+                    submission.setStatus("submitted");
+                    submission.setFilePath(assignmentFolderName + "/" + uniqueFilename);
+                    submission.setOriginalFilename(originalFilename);
+                    submission.setDescription(description);
+                    System.out.println("创建新的提交记录");
+                }
                 
                 Submission savedSubmission = submissionRepository.save(submission);
                 System.out.println("提交记录保存成功，ID: " + savedSubmission.getId());
@@ -435,23 +462,36 @@ public class SubmissionService {
                         }
                     });
                 
-                // 创建新的提交记录
-                Submission submission = new Submission();
-                submission.setAssignment(assignment);
-                submission.setSubmittedBy(user);
-                submission.setSubmitTime(LocalDateTime.now());
-                submission.setStatus("submitted");
-                submission.setFilePath(assignmentFolderName + "/" + zipFilename);
-                
                 // 保存原始文件名（多个图片用逗号分隔）
                 StringBuilder originalFilenames = new StringBuilder();
                 for (int i = 0; i < imageFiles.size(); i++) {
                     if (i > 0) originalFilenames.append(", ");
                     originalFilenames.append(imageFiles.get(i).getOriginalFilename());
                 }
-                submission.setOriginalFilename(originalFilenames.toString());
+                String originalFilenamesStr = originalFilenames.toString();
                 
-                submission.setDescription(description);
+                Submission submission;
+                
+                if (existingSubmission.isPresent()) {
+                    // 更新现有记录
+                    submission = existingSubmission.get();
+                    submission.setSubmitTime(LocalDateTime.now());
+                    submission.setFilePath(assignmentFolderName + "/" + zipFilename);
+                    submission.setOriginalFilename(originalFilenamesStr);
+                    submission.setDescription(description);
+                    System.out.println("更新现有提交记录，ID: " + submission.getId());
+                } else {
+                    // 创建新的提交记录
+                    submission = new Submission();
+                    submission.setAssignment(assignment);
+                    submission.setSubmittedBy(user);
+                    submission.setSubmitTime(LocalDateTime.now());
+                    submission.setStatus("submitted");
+                    submission.setFilePath(assignmentFolderName + "/" + zipFilename);
+                    submission.setOriginalFilename(originalFilenamesStr);
+                    submission.setDescription(description);
+                    System.out.println("创建新的提交记录");
+                }
                 
                 Submission savedSubmission = submissionRepository.save(submission);
                 System.out.println("提交记录保存成功，ID: " + savedSubmission.getId());
@@ -498,14 +538,6 @@ public class SubmissionService {
             throw new RuntimeException("文件大小不能超过20MB");
         }
         
-        // 检查是否已有提交记录，如果有则删除旧文件
-        Optional<Submission> existingSubmission = submissionRepository.findByAssignmentAndSubmittedBy(assignment, user);
-        if (existingSubmission.isPresent()) {
-            System.out.println("发现已有提交记录，删除旧文件: " + existingSubmission.get().getFilePath());
-            deleteSubmissionFile(existingSubmission.get());
-            submissionRepository.delete(existingSubmission.get());
-        }
-        
         // 为作业创建一个子目录，文件夹名基于作业标题（经过清洗）
         String assignmentFolderName = sanitizeTitle(assignment.getTitle());
         Path assignmentFolder = this.uploadDir.resolve(assignmentFolderName);
@@ -540,7 +572,7 @@ public class SubmissionService {
                 throw new RuntimeException("上传目录不可写: " + assignmentFolder);
             }
             
-            // 保存文件
+            // 保存文件，如果已存在则覆盖
             Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
             System.out.println("文件保存成功: " + filePath);
         } catch (IOException e) {
@@ -549,15 +581,30 @@ public class SubmissionService {
             throw new RuntimeException("保存文件失败: " + e.getMessage(), e);
         }
         
-        // 创建新的提交记录
-        Submission submission = new Submission();
-        submission.setAssignment(assignment);
-        submission.setSubmittedBy(user);
-        submission.setSubmitTime(LocalDateTime.now());
-        submission.setStatus("submitted");
-        submission.setFilePath(assignmentFolderName + "/" + uniqueFilename);
-        submission.setOriginalFilename(originalFilename); // 保存原始文件名
-        submission.setDescription(description);
+        // 检查是否已有提交记录，如果有则更新，否则创建新记录
+        Optional<Submission> existingSubmission = submissionRepository.findByAssignmentAndSubmittedBy(assignment, user);
+        Submission submission;
+        
+        if (existingSubmission.isPresent()) {
+            // 更新现有记录
+            submission = existingSubmission.get();
+            submission.setSubmitTime(LocalDateTime.now());
+            submission.setFilePath(assignmentFolderName + "/" + uniqueFilename);
+            submission.setOriginalFilename(originalFilename);
+            submission.setDescription(description);
+            System.out.println("更新现有提交记录，ID: " + submission.getId());
+        } else {
+            // 创建新的提交记录
+            submission = new Submission();
+            submission.setAssignment(assignment);
+            submission.setSubmittedBy(user);
+            submission.setSubmitTime(LocalDateTime.now());
+            submission.setStatus("submitted");
+            submission.setFilePath(assignmentFolderName + "/" + uniqueFilename);
+            submission.setOriginalFilename(originalFilename);
+            submission.setDescription(description);
+            System.out.println("创建新的提交记录");
+        }
         
         Submission savedSubmission = submissionRepository.save(submission);
         System.out.println("提交记录保存成功，ID: " + savedSubmission.getId());
