@@ -279,7 +279,7 @@ const submissionList = ref<HomeworkSubmission[]>([])
 // 获取作业列表
 const fetchAssignments = async () => {
   try {
-    const response = await axios.get('/api/assignments')
+    const response = await axios.get('/assignments')
     assignmentList.value = response.data
   } catch (error: any) {
     ElMessage.error(error.response?.data?.error || '获取作业列表失败')
@@ -454,7 +454,7 @@ const handlePublish = async () => {
         const formattedDeadline = publishForm.deadline ? 
           publishForm.deadline.replace(' ', 'T') + ':00' : null
 
-        const response = await axios.post('/api/assignments', {
+        const response = await axios.post('/assignments', {
           title: publishForm.title,
           description: publishForm.description,
           deadline: formattedDeadline,
@@ -475,7 +475,7 @@ const handlePublish = async () => {
 
 const handleSubmitControl = async (assignment: HomeworkAssignment) => {
   try {
-    await axios.put(`/api/assignments/${assignment.id}/submit-control`, {
+    await axios.put(`/assignments/${assignment.id}/submit-control`, {
       allowSubmit: assignment.allowSubmit
     })
     const action = assignment.allowSubmit ? '允许' : '禁止'
@@ -494,7 +494,7 @@ const deleteAssignment = (assignment: HomeworkAssignment) => {
     type: 'warning'
   }).then(async () => {
     try {
-      await axios.delete(`/api/assignments/${assignment.id}`)
+      await axios.delete(`/assignments/${assignment.id}`)
       assignmentList.value = assignmentList.value.filter(item => item.id !== assignment.id)
       if (currentAssignment.value?.id === assignment.id) {
         currentAssignment.value = null
@@ -527,7 +527,7 @@ const viewSubmissions = async (assignment: HomeworkAssignment) => {
       title: assignment.title
     })
 
-    const response = await axios.get(`/api/submissions/assignment/${assignment.id}`)
+    const response = await axios.get(`/submissions/assignment/${assignment.id}`)
     console.log('获取提交情况成功:', response.data)
     
     submissionList.value = response.data
@@ -564,7 +564,7 @@ const viewSubmission = async (submission: HomeworkSubmission) => {
     
     // 先获取提交记录详情
     console.log('获取提交记录详情...');
-    const detailResponse = await axios.get(`/api/submissions/${submission.id}`);
+    const detailResponse = await axios.get(`/submissions/${submission.id}`);
     const submissionDetail = detailResponse.data;
     console.log('提交记录详情:', submissionDetail);
     
@@ -589,21 +589,22 @@ const viewSubmission = async (submission: HomeworkSubmission) => {
     });
     
     console.log('开始下载文件...');
-    console.log('请求URL:', `/api/submissions/${submission.id}/file`);
+    console.log('请求URL:', `/submissions/${submission.id}/file`);
     
-    // 使用fetch API获取文件
-    const response = await fetch(`/api/submissions/${submission.id}/file`, {
+    // 使用axios获取文件，设置responseType为blob
+    const response = await axios.get(`/submissions/${submission.id}/file`, {
+      responseType: 'blob',
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('token')}`
       }
     });
     
-    if (!response.ok) {
-      throw new Error(`下载失败: ${response.status} ${response.statusText}`);
+    if (!response.data) {
+      throw new Error(`下载失败: 未收到文件数据`);
     }
     
     // 获取文件内容
-    const blob = await response.blob();
+    const blob = response.data;
     console.log('文件下载成功，大小:', blob.size);
     
     // 关闭加载提示
@@ -652,14 +653,16 @@ const submitFeedback = async () => {
   if (currentSubmission.value) {
     try {
       const response = await axios.put(
-        `/api/submissions/${currentSubmission.value.id}/feedback`,
+        `/submissions/${currentSubmission.value.id}/feedback`,
         { feedback: feedbackForm.value.content }
       )
+      
       const index = submissionList.value.findIndex(item => item.id === currentSubmission.value?.id)
       if (index !== -1) {
         submissionList.value[index] = response.data
       }
-      ElMessage.success('反馈已提交')
+      
+      ElMessage.success('反馈提交成功')
       feedbackDialogVisible.value = false
     } catch (error: any) {
       ElMessage.error(error.response?.data?.error || '提交反馈失败')

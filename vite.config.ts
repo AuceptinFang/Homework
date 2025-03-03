@@ -4,7 +4,7 @@ import vue from '@vitejs/plugin-vue'
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [vue()],
-  base: '/Homework/', // GitHub Pages的仓库名
+  base: '/', // 修改为根路径，适合直接部署在服务器上
   server: {
     host: '0.0.0.0', // 允许外部访问
     port: 3000, // 修改为非特权端口

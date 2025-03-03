@@ -102,11 +102,51 @@
         :model="submitForm"
         label-width="120px"
       >
+        <el-alert
+          v-if="currentAssignment?.fileFormat === 'pdf'"
+          type="warning"
+          :closable="false"
+          show-icon
+          style="margin-bottom: 15px"
+        >
+          <p>此作业要求提交PDF格式文件。您可以：</p>
+          <ul>
+            <li>直接上传PDF文件</li>
+            <li>上传多张图片，系统将自动合并为PDF</li>
+          </ul>
+        </el-alert>
+        
+        <el-alert
+          v-else
+          type="info"
+          :closable="false"
+          show-icon
+          style="margin-bottom: 15px"
+        >
+          <p>此作业允许提交任意格式文件，无需转换为PDF。</p>
+        </el-alert>
+        
+        <el-form-item label="提交类型" prop="submitType">
+          <el-radio-group v-model="submitForm.submitType">
+            <template v-if="currentAssignment?.fileFormat === 'pdf'">
+              <el-radio label="pdf">PDF文件</el-radio>
+              <el-radio label="images">多张图片</el-radio>
+            </template>
+            <template v-else>
+              <el-radio label="pdf">PDF文件</el-radio>
+              <el-radio label="images">图片文件</el-radio>
+              <el-radio label="other">其他格式</el-radio>
+            </template>
+          </el-radio-group>
+        </el-form-item>
+        
+        <!-- PDF文件上传 -->
         <el-form-item
-          label="作业文件"
+          v-if="submitForm.submitType === 'pdf'"
+          label="PDF文件"
           prop="file"
           :rules="[
-            { required: true, message: '请上传作业文件' }
+            { required: submitForm.submitType === 'pdf', message: '请上传PDF文件' }
           ]"
         >
           <el-upload
@@ -126,6 +166,60 @@
             </template>
           </el-upload>
         </el-form-item>
+        
+        <!-- 多图片上传 -->
+        <el-form-item
+          v-if="submitForm.submitType === 'images'"
+          label="图片文件"
+          prop="imageFiles"
+          :rules="[
+            { required: submitForm.submitType === 'images', message: '请上传至少一张图片' }
+          ]"
+        >
+          <el-upload
+            class="upload-container"
+            :auto-upload="false"
+            :limit="10"
+            multiple
+            accept="image/*"
+            list-type="picture-card"
+            :on-change="handleImagesChange"
+          >
+            <el-icon><Plus /></el-icon>
+            <template #tip>
+              <div class="el-upload__tip">
+                {{ currentAssignment?.fileFormat === 'pdf' ? '可上传多张图片，将自动合并为PDF（最多10张）' : '可上传多张图片（最多10张）' }}
+              </div>
+            </template>
+          </el-upload>
+        </el-form-item>
+        
+        <!-- 其他格式文件上传 -->
+        <el-form-item
+          v-if="submitForm.submitType === 'other'"
+          label="其他文件"
+          prop="otherFile"
+          :rules="[
+            { required: submitForm.submitType === 'other', message: '请上传文件' }
+          ]"
+        >
+          <el-upload
+            class="upload-container"
+            :auto-upload="false"
+            :limit="1"
+            :on-change="handleOtherFileChange"
+          >
+            <template #trigger>
+              <el-button type="primary" class="upload-button">选择文件</el-button>
+            </template>
+            <template #tip>
+              <div class="el-upload__tip">
+                文件大小不超过20MB
+              </div>
+            </template>
+          </el-upload>
+        </el-form-item>
+        
         <el-form-item label="备注" prop="description">
           <el-input
             v-model="submitForm.description"
@@ -154,6 +248,7 @@ import type { FormInstance } from 'element-plus'
 import type { HomeworkAssignment, HomeworkSubmission } from '../types/homework'
 import axios from 'axios'
 import { setServerOffline } from '../router'
+import { Plus } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const username = ref(localStorage.getItem('username') || '')
@@ -261,7 +356,10 @@ onMounted(() => {
 
 const submitForm = reactive({
   file: null as File | null,
-  description: ''
+  imageFiles: [] as File[],
+  otherFile: null as File | null,
+  description: '',
+  submitType: 'pdf' // 默认为PDF上传
 })
 
 // 删除未使用的函数
@@ -300,7 +398,10 @@ const handleLogout = () => {
 const submitHomework = (assignment: HomeworkAssignment) => {
   currentAssignment.value = assignment
   submitForm.file = null
+  submitForm.imageFiles = []
+  submitForm.otherFile = null
   submitForm.description = ''
+  submitForm.submitType = 'pdf'
   submitDialogVisible.value = true
 }
 
@@ -333,6 +434,28 @@ const handleFileChange = (uploadFile: any) => {
   }
 }
 
+const handleImagesChange = (uploadFile: any, uploadFiles: any[]) => {
+  // 检查文件类型
+  if (uploadFile.raw && !uploadFile.raw.type.startsWith('image/')) {
+    ElMessage.error('只能上传图片文件！')
+    return false
+  }
+  
+  // 更新图片文件列表
+  submitForm.imageFiles = uploadFiles.map(file => file.raw).filter(Boolean)
+}
+
+const handleOtherFileChange = (uploadFile: any) => {
+  if (uploadFile.raw) {
+    // 检查文件大小
+    if (uploadFile.raw.size > 20 * 1024 * 1024) {
+      ElMessage.error('文件大小不能超过20MB！')
+      return false
+    }
+    submitForm.otherFile = uploadFile.raw
+  }
+}
+
 const handleSubmit = async () => {
   if (!submitFormRef.value) {
     console.error('表单引用不存在')
@@ -345,7 +468,19 @@ const handleSubmit = async () => {
     return
   }
   
-  if (!submitForm.file) {
+  if (submitForm.submitType === 'pdf' && !submitForm.file) {
+    console.error('未选择PDF文件')
+    ElMessage.error('请选择要上传的PDF文件')
+    return
+  }
+  
+  if (submitForm.submitType === 'images' && submitForm.imageFiles.length === 0) {
+    console.error('未选择图片文件')
+    ElMessage.error('请选择要上传的图片文件')
+    return
+  }
+  
+  if (submitForm.submitType === 'other' && !submitForm.otherFile) {
     console.error('未选择文件')
     ElMessage.error('请选择要上传的文件')
     return
@@ -356,64 +491,149 @@ const handleSubmit = async () => {
       try {
         console.log('开始提交作业...')
         
-        // 确保currentAssignment.value和submitForm.file不为null
-        // 这里已经在前面检查过了，但TypeScript还是会警告
-        if (!currentAssignment.value || !submitForm.file) {
+        // 确保currentAssignment.value不为null
+        if (!currentAssignment.value) {
           return
         }
         
         const assignmentId = currentAssignment.value.id
         const assignmentTitle = currentAssignment.value.title
-        const file = submitForm.file
+        const isPdfOnly = currentAssignment.value.fileFormat === 'pdf'
         
         console.log('作业ID:', assignmentId)
         console.log('作业标题:', assignmentTitle)
-        console.log('文件名:', file.name)
-        console.log('文件大小:', file.size)
-        console.log('文件类型:', file.type)
-        
-        // 再次验证文件类型
-        if (file.type !== 'application/pdf') {
-          console.error('文件类型错误:', file.type)
-          ElMessage.error('只能上传PDF文件')
-          return
-        }
-        
-        // 验证文件大小
-        if (file.size > 20 * 1024 * 1024) {
-          console.error('文件过大:', file.size)
-          ElMessage.error('文件大小不能超过20MB')
-          return
-        }
+        console.log('是否仅PDF:', isPdfOnly)
+        console.log('提交类型:', submitForm.submitType)
         
         const formData = new FormData()
-        formData.append('file', file)
-        if (submitForm.description) {
-          formData.append('description', submitForm.description)
+        
+        if (submitForm.submitType === 'pdf') {
+          // PDF文件上传
+          const file = submitForm.file
+          if (!file) return
+          
+          console.log('文件名:', file.name)
+          console.log('文件大小:', file.size)
+          console.log('文件类型:', file.type)
+          
+          // 再次验证文件类型
+          if (file.type !== 'application/pdf') {
+            console.error('文件类型错误:', file.type)
+            ElMessage.error('只能上传PDF文件')
+            return
+          }
+          
+          // 验证文件大小
+          if (file.size > 20 * 1024 * 1024) {
+            console.error('文件过大:', file.size)
+            ElMessage.error('文件大小不能超过20MB')
+            return
+          }
+          
+          formData.append('file', file)
+          if (submitForm.description) {
+            formData.append('description', submitForm.description)
+          }
+          
+          console.log('发送PDF上传请求...')
+          
+          const response = await axios.post(
+            `/submissions/assignment/${assignmentId}`,
+            formData,
+            {
+              headers: {
+                'Content-Type': 'multipart/form-data'
+              },
+              timeout: 30000 // 30秒超时
+            }
+          )
+          
+          console.log('提交作业成功:', response.data)
+          submissionList.value.unshift(response.data)
+          
+        } else if (submitForm.submitType === 'images') {
+          // 多图片上传
+          const imageFiles = submitForm.imageFiles
+          
+          console.log('图片数量:', imageFiles.length)
+          
+          // 验证文件大小
+          const totalSize = imageFiles.reduce((sum, file) => sum + file.size, 0)
+          if (totalSize > 20 * 1024 * 1024) {
+            console.error('文件总大小过大:', totalSize)
+            ElMessage.error('文件总大小不能超过20MB')
+            return
+          }
+          
+          // 添加所有图片文件
+          imageFiles.forEach(file => {
+            formData.append('files', file)
+          })
+          
+          if (submitForm.description) {
+            formData.append('description', submitForm.description)
+          }
+          
+          console.log('发送图片上传请求...')
+          
+          // 根据作业要求决定是否需要转换为PDF
+          let endpoint = isPdfOnly 
+            ? `/submissions/assignment/${assignmentId}/images` 
+            : `/submissions/assignment/${assignmentId}/raw-images`
+          
+          console.log('使用端点:', endpoint)
+          
+          const response = await axios.post(
+            endpoint,
+            formData,
+            {
+              headers: {
+                'Content-Type': 'multipart/form-data'
+              },
+              timeout: isPdfOnly ? 60000 : 30000 // 转PDF需要更长时间
+            }
+          )
+          
+          console.log('提交图片成功:', response.data)
+          submissionList.value.unshift(response.data)
+        } else if (submitForm.submitType === 'other') {
+          // 其他格式文件上传
+          const file = submitForm.otherFile
+          if (!file) return
+          
+          console.log('文件名:', file.name)
+          console.log('文件大小:', file.size)
+          console.log('文件类型:', file.type)
+          
+          // 验证文件大小
+          if (file.size > 20 * 1024 * 1024) {
+            console.error('文件过大:', file.size)
+            ElMessage.error('文件大小不能超过20MB')
+            return
+          }
+          
+          formData.append('file', file)
+          if (submitForm.description) {
+            formData.append('description', submitForm.description)
+          }
+          
+          console.log('发送其他格式文件上传请求...')
+          
+          const response = await axios.post(
+            `/submissions/assignment/${assignmentId}/other`,
+            formData,
+            {
+              headers: {
+                'Content-Type': 'multipart/form-data'
+              },
+              timeout: 30000 // 30秒超时
+            }
+          )
+          
+          console.log('提交文件成功:', response.data)
+          submissionList.value.unshift(response.data)
         }
         
-        console.log('发送请求...')
-        console.log('请求URL:', `/submissions/assignment/${assignmentId}`)
-        console.log('请求方法: POST')
-        console.log('请求头:', {
-          'Content-Type': 'multipart/form-data',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        })
-        
-        const response = await axios.post(
-          `/submissions/assignment/${assignmentId}`,
-          formData,
-          {
-            headers: {
-              'Content-Type': 'multipart/form-data'
-            },
-            timeout: 30000 // 30秒超时
-          }
-        )
-        
-        console.log('提交作业成功:', response.data)
-
-        submissionList.value.unshift(response.data)
         ElMessage.success('作业提交成功！')
         submitDialogVisible.value = false
         

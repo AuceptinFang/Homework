@@ -27,13 +27,23 @@ axios.interceptors.request.use(
       // 处理 proxy.cors.sh 代理请求的路径问题
       const apiPath = config.url || ''
       
-      // 移除开头的 /api 前缀，因为 baseURL 已经包含了 /api
-      if (apiPath.startsWith('/api/')) {
-        config.url = apiPath.substring(4) // 移除 '/api'
-        console.log('移除重复的 /api 前缀，新路径:', config.url)
-      } else if (apiPath.startsWith('/api')) {
-        config.url = apiPath.substring(4) // 移除 '/api'
-        console.log('移除重复的 /api 前缀，新路径:', config.url)
+      // 特殊处理文件下载请求
+      if (apiPath.includes('/file') && config.responseType === 'blob') {
+        console.log('检测到文件下载请求，特殊处理:', apiPath)
+        // 文件下载请求需要直接访问后端，不经过代理
+        // 修改为直接访问后端的URL
+        config.baseURL = 'http://134.175.229.249:8080/api'
+        // 确保文件下载请求使用正确的头部
+        config.headers['Accept'] = '*/*'
+      } else {
+        // 移除开头的 /api 前缀，因为 baseURL 已经包含了 /api
+        if (apiPath.startsWith('/api/')) {
+          config.url = apiPath.substring(4) // 移除 '/api'
+          console.log('移除重复的 /api 前缀，新路径:', config.url)
+        } else if (apiPath.startsWith('/api')) {
+          config.url = apiPath.substring(4) // 移除 '/api'
+          console.log('移除重复的 /api 前缀，新路径:', config.url)
+        }
       }
     }
 
