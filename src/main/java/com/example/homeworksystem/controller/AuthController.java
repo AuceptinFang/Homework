@@ -14,6 +14,9 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import org.springframework.web.bind.annotation.CrossOrigin;
+import java.util.List;
+import java.util.ArrayList;
+
 @CrossOrigin
 @RestController
 @RequestMapping("/api/auth")
@@ -32,6 +35,8 @@ public class AuthController {
     public ResponseEntity<?> register(@RequestBody Map<String, String> registerRequest) {
         String username = registerRequest.get("username");
         String password = registerRequest.get("password");
+        String realName = registerRequest.get("realName");
+        String studentId = registerRequest.get("studentId");
 
         if (username == null || username.trim().isEmpty()) {
             return ResponseEntity.badRequest().body(Map.of("error", "用户名不能为空"));
@@ -42,6 +47,18 @@ public class AuthController {
 
         try {
             User user = userService.createUser(username, password);
+            
+            // 设置真实姓名和学号（如果提供）
+            if (realName != null && !realName.trim().isEmpty()) {
+                user.setRealName(realName.trim());
+            }
+            if (studentId != null && !studentId.trim().isEmpty()) {
+                user.setStudentId(studentId.trim());
+            }
+            
+            // 保存更新后的用户信息
+            userService.saveUser(user);
+            
             return ResponseEntity.ok(Map.of(
                 "success", true,
                 "message", "注册成功",
@@ -119,19 +136,35 @@ public class AuthController {
         Map<String, Object> response = new HashMap<>();
         response.put("username", user.getUsername());
         response.put("isAdmin", user.isAdmin());
+        response.put("realName", user.getRealName());
+        response.put("studentId", user.getStudentId());
         return ResponseEntity.ok(response);
     }
 
     @GetMapping("/usernames")
     public ResponseEntity<?> getUsernames() {
-        return ResponseEntity.ok(Arrays.asList(
-            "admin", // 管理员账号放在最前面
-            "段鹏鹏", "方震", "高天全", "高子涵", "龚皓",
-            "霍雨婷", "贾奇燠", "贾一丁", "金闿翎", "靳宇晨",
-            "李希", "刘森源", "刘文晶", "吕彦儒", "吕泽熙",
-            "苏宗佑", "汤锦健", "王奕涵", "王悦琳", "王志成",
-            "王墨", "王泽君", "夏正鑫", "肖俊波", "杨海屹",
-            "杨孟涵", "张成宇", "张峻菘", "张钟文", "赵萌"
-        ));
+        // 获取所有学生用户
+        List<User> students = userService.getAllStudents();
+        
+        // 构建包含学号和姓名的用户列表
+        List<Map<String, Object>> userList = new ArrayList<>();
+        
+        // 添加管理员账号
+        Map<String, Object> adminUser = new HashMap<>();
+        adminUser.put("username", "admin");
+        adminUser.put("realName", "管理员");
+        adminUser.put("studentId", "");
+        userList.add(adminUser);
+        
+        // 添加学生账号
+        for (User student : students) {
+            Map<String, Object> userInfo = new HashMap<>();
+            userInfo.put("username", student.getUsername());
+            userInfo.put("realName", student.getRealName());
+            userInfo.put("studentId", student.getStudentId());
+            userList.add(userInfo);
+        }
+        
+        return ResponseEntity.ok(userList);
     }
 } 

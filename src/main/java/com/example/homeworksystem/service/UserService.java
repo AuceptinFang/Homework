@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 
 @Service
@@ -64,22 +65,36 @@ public class UserService implements UserDetailsService {
         if (existingUser.isPresent()) {
             User user = existingUser.get();
             // 如果用户存在但密码为空，说明是未注册用户，允许设置密码
-            if (user.getPassword() == null) {
+            if (user.getPassword() == null && password != null) {
                 user.setPassword(passwordEncoder.encode(password));
                 return userRepository.save(user);
             }
-            throw new RuntimeException("用户名已注册");
+            if (password != null) {
+                throw new RuntimeException("用户名已注册");
+            }
+            return user;
         }
 
         User user = new User();
         user.setUsername(username);
-        user.setPassword(passwordEncoder.encode(password));
+        if (password != null) {
+            user.setPassword(passwordEncoder.encode(password));
+        }
         user.setAdmin(false);
         return userRepository.save(user);
     }
 
     public Optional<User> findByUsername(String username) {
         return userRepository.findByUsername(username);
+    }
+
+    /**
+     * 根据ID查找用户
+     * @param id 用户ID
+     * @return 用户对象（可选）
+     */
+    public Optional<User> findById(Long id) {
+        return userRepository.findById(id);
     }
 
     public boolean validatePassword(String rawPassword, String encodedPassword) {
@@ -102,5 +117,23 @@ public class UserService implements UserDetailsService {
         }
 
         return user;
+    }
+
+    /**
+     * 保存用户信息
+     * @param user 用户对象
+     * @return 保存后的用户对象
+     */
+    @Transactional
+    public User saveUser(User user) {
+        return userRepository.save(user);
+    }
+
+    /**
+     * 获取所有学生用户（非管理员用户）
+     * @return 学生用户列表
+     */
+    public List<User> getAllStudents() {
+        return userRepository.findByIsAdminFalse();
     }
 }

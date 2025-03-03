@@ -1,4 +1,5 @@
 C:\Users\方震\Desktop\第一份完整版\homework-system-server\src\main\java\com\example\homeworksystem\entity\User.java
+C:\Users\方震\Desktop\第一份完整版\homework-system-server\src\main\java\com\example\homeworksystem\controller\UserController.java
 C:\Users\方震\Desktop\第一份完整版\homework-system-server\src\main\java\com\example\homeworksystem\service\UserService.java
 C:\Users\方震\Desktop\第一份完整版\homework-system-server\src\main\java\com\example\homeworksystem\config\DatabaseConfig.java
 C:\Users\方震\Desktop\第一份完整版\homework-system-server\src\main\java\com\example\homeworksystem\service\AssignmentService.java
@@ -13,6 +14,7 @@ C:\Users\方震\Desktop\第一份完整版\homework-system-server\src\main\java\
 C:\Users\方震\Desktop\第一份完整版\homework-system-server\src\main\java\com\example\homeworksystem\config\SecurityConfig.java
 C:\Users\方震\Desktop\第一份完整版\homework-system-server\src\main\java\com\example\homeworksystem\entity\Submission.java
 C:\Users\方震\Desktop\第一份完整版\homework-system-server\src\main\java\com\example\homeworksystem\HomeworkSystemApplication.java
+C:\Users\方震\Desktop\第一份完整版\homework-system-server\src\main\java\com\example\homeworksystem\util\PdfUtil.java
 C:\Users\方震\Desktop\第一份完整版\homework-system-server\src\main\java\com\example\homeworksystem\controller\AssignmentController.java
 C:\Users\方震\Desktop\第一份完整版\homework-system-server\src\main\java\com\example\homeworksystem\repository\AssignmentRepository.java
 C:\Users\方震\Desktop\第一份完整版\homework-system-server\src\main\java\com\example\homeworksystem\controller\AuthController.java

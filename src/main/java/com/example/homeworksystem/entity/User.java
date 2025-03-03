@@ -23,6 +23,12 @@ public class User implements UserDetails {
 
     @Column(nullable = false)
     private boolean isAdmin;
+    
+    @Column
+    private String realName;
+    
+    @Column
+    private String studentId;
 
     public Long getId() {
         return id;
@@ -56,6 +62,22 @@ public class User implements UserDetails {
 
     public void setAdmin(boolean admin) {
         isAdmin = admin;
+    }
+    
+    public String getRealName() {
+        return realName;
+    }
+    
+    public void setRealName(String realName) {
+        this.realName = realName;
+    }
+    
+    public String getStudentId() {
+        return studentId;
+    }
+    
+    public void setStudentId(String studentId) {
+        this.studentId = studentId;
     }
 
     @Override

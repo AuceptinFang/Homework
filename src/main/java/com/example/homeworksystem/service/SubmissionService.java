@@ -12,15 +12,20 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.beans.factory.annotation.Value;
 import jakarta.annotation.PostConstruct;
 
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 @Service
 public class SubmissionService {
@@ -109,8 +114,14 @@ public class SubmissionService {
         String originalFilename = file.getOriginalFilename();
         System.out.println("原始文件名: " + originalFilename);
         
-        // 使用上传时的原始文件名（如果需要防止冲突，可在此处添加时间戳或随机前缀）
-        String uniqueFilename = originalFilename;
+        // 获取文件扩展名
+        String fileExtension = "";
+        if (originalFilename != null && originalFilename.contains(".")) {
+            fileExtension = originalFilename.substring(originalFilename.lastIndexOf("."));
+        }
+        
+        // 使用学号+姓名作为文件名
+        String uniqueFilename = generateFilePrefix(user) + fileExtension;
         System.out.println("使用的文件名: " + uniqueFilename);
 
         // 为作业创建一个子目录，文件夹名基于作业标题（经过清洗）
@@ -125,16 +136,16 @@ public class SubmissionService {
         
         try {
             // 确保上传目录存在
-            Files.createDirectories(this.uploadDir);
+            Files.createDirectories(assignmentFolder);
             
             // 检查目录是否可写
-            if (!Files.isWritable(this.uploadDir)) {
-                System.out.println("上传目录不可写: " + this.uploadDir);
-                throw new RuntimeException("上传目录不可写: " + this.uploadDir);
+            if (!Files.isWritable(assignmentFolder)) {
+                System.out.println("上传目录不可写: " + assignmentFolder);
+                throw new RuntimeException("上传目录不可写: " + assignmentFolder);
             }
             
             // 保存文件
-            Files.copy(file.getInputStream(), filePath);
+            Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
             System.out.println("文件保存成功: " + filePath);
         } catch (IOException e) {
             System.out.println("保存文件失败: " + e.getMessage());
@@ -221,6 +232,18 @@ public class SubmissionService {
     }
 
     /**
+     * 生成文件名前缀，格式为：学号+姓名
+     * 如果学号或姓名为空，则使用用户名
+     */
+    private String generateFilePrefix(User user) {
+        if (user.getStudentId() != null && !user.getStudentId().isEmpty() 
+                && user.getRealName() != null && !user.getRealName().isEmpty()) {
+            return user.getStudentId() + "_" + user.getRealName();
+        }
+        return user.getUsername();
+    }
+
+    /**
      * 处理多张图片上传并合并为PDF
      *
      * @param assignment 作业
@@ -255,8 +278,8 @@ public class SubmissionService {
         Files.createDirectories(assignmentFolder);
         System.out.println("为作业 '" + assignment.getTitle() + "' 创建文件夹: " + assignmentFolder);
         
-        // 创建PDF文件名（使用用户名）
-        String pdfFilename = user.getUsername() + ".pdf";
+        // 创建PDF文件名（使用学号+姓名）
+        String pdfFilename = generateFilePrefix(user) + ".pdf";
         Path pdfPath = assignmentFolder.resolve(pdfFilename);
         System.out.println("PDF文件路径: " + pdfPath);
         
@@ -271,14 +294,21 @@ public class SubmissionService {
         submission.setSubmitTime(LocalDateTime.now());
         submission.setStatus("submitted");
         submission.setFilePath(assignmentFolderName + "/" + pdfFilename);
-        submission.setOriginalFilename(pdfFilename); // 保存原始文件名
+        
+        // 保存原始文件名（多个图片用逗号分隔）
+        StringBuilder originalFilenames = new StringBuilder();
+        for (int i = 0; i < imageFiles.size(); i++) {
+            if (i > 0) originalFilenames.append(", ");
+            originalFilenames.append(imageFiles.get(i).getOriginalFilename());
+        }
+        submission.setOriginalFilename(originalFilenames.toString());
+        
         submission.setDescription(description);
         
-        // 保存提交记录
-        submission = submissionRepository.save(submission);
-        System.out.println("提交记录已保存，ID: " + submission.getId());
+        Submission savedSubmission = submissionRepository.save(submission);
+        System.out.println("提交记录保存成功，ID: " + savedSubmission.getId());
         
-        return submission;
+        return savedSubmission;
     }
 
     /**
@@ -315,55 +345,124 @@ public class SubmissionService {
         Files.createDirectories(assignmentFolder);
         System.out.println("为作业 '" + assignment.getTitle() + "' 创建文件夹: " + assignmentFolder);
         
-        // 创建用户文件夹
-        String userFolderName = user.getUsername();
-        Path userFolder = assignmentFolder.resolve(userFolderName);
-        Files.createDirectories(userFolder);
-        System.out.println("为用户 '" + user.getUsername() + "' 创建文件夹: " + userFolder);
-        
-        // 保存所有图片
-        List<String> savedFilePaths = new ArrayList<>();
-        for (MultipartFile imageFile : imageFiles) {
-            // 检查文件是否为图片
-            String contentType = imageFile.getContentType();
-            if (contentType == null || !contentType.startsWith("image/")) {
-                System.out.println("跳过非图片文件: " + imageFile.getOriginalFilename());
-                continue;
-            }
-            
-            // 获取原始文件名
+        // 如果只有一张图片，直接保存
+        if (imageFiles.size() == 1) {
+            MultipartFile imageFile = imageFiles.get(0);
             String originalFilename = imageFile.getOriginalFilename();
-            if (originalFilename == null || originalFilename.isEmpty()) {
-                originalFilename = "image_" + System.currentTimeMillis() + ".jpg";
+            
+            // 获取文件扩展名
+            String fileExtension = "";
+            if (originalFilename != null && originalFilename.contains(".")) {
+                fileExtension = originalFilename.substring(originalFilename.lastIndexOf("."));
             }
             
-            // 保存图片
-            Path imagePath = userFolder.resolve(originalFilename);
-            Files.copy(imageFile.getInputStream(), imagePath);
-            System.out.println("保存图片: " + imagePath);
+            // 使用学号+姓名作为文件名
+            String uniqueFilename = generateFilePrefix(user) + fileExtension;
+            Path filePath = assignmentFolder.resolve(uniqueFilename);
             
-            savedFilePaths.add(imagePath.getFileName().toString());
+            try {
+                Files.copy(imageFile.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
+                System.out.println("图片已保存: " + filePath);
+                
+                // 创建新的提交记录
+                Submission submission = new Submission();
+                submission.setAssignment(assignment);
+                submission.setSubmittedBy(user);
+                submission.setSubmitTime(LocalDateTime.now());
+                submission.setStatus("submitted");
+                submission.setFilePath(assignmentFolderName + "/" + uniqueFilename);
+                submission.setOriginalFilename(originalFilename);
+                submission.setDescription(description);
+                
+                Submission savedSubmission = submissionRepository.save(submission);
+                System.out.println("提交记录保存成功，ID: " + savedSubmission.getId());
+                
+                return savedSubmission;
+            } catch (IOException e) {
+                System.out.println("保存图片失败: " + e.getMessage());
+                e.printStackTrace();
+                throw new RuntimeException("保存图片失败: " + e.getMessage(), e);
+            }
+        } 
+        // 如果有多张图片，创建一个压缩文件
+        else {
+            // 使用学号+姓名作为文件名
+            String zipFilename = generateFilePrefix(user) + ".zip";
+            Path zipPath = assignmentFolder.resolve(zipFilename);
+            
+            try {
+                // 创建临时目录存放图片
+                Path tempDir = Files.createTempDirectory("images_");
+                
+                // 保存所有图片到临时目录
+                for (int i = 0; i < imageFiles.size(); i++) {
+                    MultipartFile imageFile = imageFiles.get(i);
+                    String originalFilename = imageFile.getOriginalFilename();
+                    if (originalFilename == null) {
+                        originalFilename = "image_" + i + ".jpg";
+                    }
+                    
+                    Path tempFilePath = tempDir.resolve(originalFilename);
+                    Files.copy(imageFile.getInputStream(), tempFilePath);
+                }
+                
+                // 创建ZIP文件
+                try (FileOutputStream fos = new FileOutputStream(zipPath.toFile());
+                     ZipOutputStream zos = new ZipOutputStream(fos)) {
+                    
+                    Files.walk(tempDir)
+                        .filter(path -> !Files.isDirectory(path))
+                        .forEach(path -> {
+                            ZipEntry zipEntry = new ZipEntry(tempDir.relativize(path).toString());
+                            try {
+                                zos.putNextEntry(zipEntry);
+                                Files.copy(path, zos);
+                                zos.closeEntry();
+                            } catch (IOException e) {
+                                throw new RuntimeException("创建ZIP文件失败: " + e.getMessage(), e);
+                            }
+                        });
+                }
+                
+                // 删除临时目录
+                Files.walk(tempDir)
+                    .sorted(Comparator.reverseOrder())
+                    .forEach(path -> {
+                        try {
+                            Files.delete(path);
+                        } catch (IOException e) {
+                            System.out.println("删除临时文件失败: " + path);
+                        }
+                    });
+                
+                // 创建新的提交记录
+                Submission submission = new Submission();
+                submission.setAssignment(assignment);
+                submission.setSubmittedBy(user);
+                submission.setSubmitTime(LocalDateTime.now());
+                submission.setStatus("submitted");
+                submission.setFilePath(assignmentFolderName + "/" + zipFilename);
+                
+                // 保存原始文件名（多个图片用逗号分隔）
+                StringBuilder originalFilenames = new StringBuilder();
+                for (int i = 0; i < imageFiles.size(); i++) {
+                    if (i > 0) originalFilenames.append(", ");
+                    originalFilenames.append(imageFiles.get(i).getOriginalFilename());
+                }
+                submission.setOriginalFilename(originalFilenames.toString());
+                
+                submission.setDescription(description);
+                
+                Submission savedSubmission = submissionRepository.save(submission);
+                System.out.println("提交记录保存成功，ID: " + savedSubmission.getId());
+                
+                return savedSubmission;
+            } catch (IOException e) {
+                System.out.println("创建ZIP文件失败: " + e.getMessage());
+                e.printStackTrace();
+                throw new RuntimeException("创建ZIP文件失败: " + e.getMessage(), e);
+            }
         }
-        
-        if (savedFilePaths.isEmpty()) {
-            throw new RuntimeException("没有有效的图片文件被保存");
-        }
-        
-        // 创建新的提交记录
-        Submission submission = new Submission();
-        submission.setAssignment(assignment);
-        submission.setSubmittedBy(user);
-        submission.setSubmitTime(LocalDateTime.now());
-        submission.setStatus("submitted");
-        submission.setFilePath(assignmentFolderName + "/" + userFolderName);
-        submission.setOriginalFilename(String.join(", ", savedFilePaths)); // 保存所有文件名
-        submission.setDescription(description);
-        
-        // 保存提交记录
-        submission = submissionRepository.save(submission);
-        System.out.println("提交记录已保存，ID: " + submission.getId());
-        
-        return submission;
     }
     
     /**
@@ -417,8 +516,14 @@ public class SubmissionService {
         String originalFilename = file.getOriginalFilename();
         System.out.println("原始文件名: " + originalFilename);
         
-        // 使用上传时的原始文件名（如果需要防止冲突，可在此处添加时间戳或随机前缀）
-        String uniqueFilename = user.getUsername() + "_" + (originalFilename != null ? originalFilename : "file_" + System.currentTimeMillis());
+        // 获取文件扩展名
+        String fileExtension = "";
+        if (originalFilename != null && originalFilename.contains(".")) {
+            fileExtension = originalFilename.substring(originalFilename.lastIndexOf("."));
+        }
+        
+        // 使用学号+姓名作为文件名
+        String uniqueFilename = generateFilePrefix(user) + fileExtension;
         System.out.println("使用的文件名: " + uniqueFilename);
         
         // 存储文件到对应的子目录
@@ -436,7 +541,7 @@ public class SubmissionService {
             }
             
             // 保存文件
-            Files.copy(file.getInputStream(), filePath);
+            Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
             System.out.println("文件保存成功: " + filePath);
         } catch (IOException e) {
             System.out.println("保存文件失败: " + e.getMessage());
@@ -454,10 +559,9 @@ public class SubmissionService {
         submission.setOriginalFilename(originalFilename); // 保存原始文件名
         submission.setDescription(description);
         
-        // 保存提交记录
-        submission = submissionRepository.save(submission);
-        System.out.println("提交记录已保存，ID: " + submission.getId());
+        Submission savedSubmission = submissionRepository.save(submission);
+        System.out.println("提交记录保存成功，ID: " + savedSubmission.getId());
         
-        return submission;
+        return savedSubmission;
     }
 }

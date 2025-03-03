@@ -4,7 +4,9 @@ import com.example.homeworksystem.entity.Assignment;
 import com.example.homeworksystem.entity.Submission;
 import com.example.homeworksystem.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
@@ -16,4 +18,8 @@ public interface SubmissionRepository extends JpaRepository<Submission, Long> {
     
     @Query("SELECT s FROM Submission s ORDER BY s.submitTime DESC")
     List<Submission> findAll();
+
+    @Modifying
+    @Query("DELETE FROM Submission s WHERE s.assignment = :assignment")
+    void deleteByAssignment(@Param("assignment") Assignment assignment);
 } 

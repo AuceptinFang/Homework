@@ -23,6 +23,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -67,8 +68,46 @@ public class SubmissionController {
                     .body(Map.of("error", "作业不存在"));
             }
 
+            // 获取所有学生用户
+            List<User> allUsers = userService.getAllStudents();
+            
+            // 获取该作业的所有提交记录
             List<Submission> submissions = submissionService.getSubmissionsByAssignment(assignment);
-            return ResponseEntity.ok(submissions);
+            
+            // 创建一个Map，用于快速查找用户的提交记录
+            Map<String, Submission> submissionMap = new HashMap<>();
+            for (Submission submission : submissions) {
+                submissionMap.put(submission.getSubmittedBy().getUsername(), submission);
+            }
+            
+            // 创建结果列表
+            List<Map<String, Object>> result = new ArrayList<>();
+            
+            // 为每个用户创建一个结果项
+            for (User student : allUsers) {
+                Map<String, Object> item = new HashMap<>();
+                item.put("username", student.getUsername());
+                
+                // 检查用户是否有提交记录
+                if (submissionMap.containsKey(student.getUsername())) {
+                    Submission submission = submissionMap.get(student.getUsername());
+                    item.put("submitted", true);
+                    item.put("submitTime", submission.getSubmitTime());
+                    item.put("status", submission.getStatus());
+                    item.put("filePath", submission.getFilePath());
+                    item.put("originalFilename", submission.getOriginalFilename());
+                    item.put("description", submission.getDescription());
+                    item.put("feedback", submission.getFeedback());
+                    item.put("submissionId", submission.getId());
+                } else {
+                    item.put("submitted", false);
+                    item.put("status", "未提交");
+                }
+                
+                result.add(item);
+            }
+            
+            return ResponseEntity.ok(result);
         } catch (Exception e) {
             e.printStackTrace();
             return ResponseEntity.status(400)
