@@ -6,6 +6,8 @@ import com.example.homeworksystem.entity.User;
 import com.example.homeworksystem.service.AssignmentService;
 import com.example.homeworksystem.service.SubmissionService;
 import com.example.homeworksystem.service.UserService;
+import com.example.homeworksystem.util.PdfUtil;
+import com.itextpdf.text.DocumentException;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
 import org.springframework.http.HttpHeaders;
@@ -17,10 +19,15 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.net.MalformedURLException;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-
+import java.util.stream.Collectors;
+import org.springframework.web.bind.annotation.CrossOrigin;
+@CrossOrigin
 @RestController
 @RequestMapping("/api/submissions")
 public class SubmissionController {
@@ -128,6 +135,185 @@ public class SubmissionController {
             }
             
             Submission submission = submissionService.submitHomework(assignment, user, file, description);
+            System.out.println("文件上传成功，提交ID: " + submission.getId());
+            
+            return ResponseEntity.ok(submission);
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.out.println("文件上传失败: " + e.getMessage());
+            return ResponseEntity.status(500)
+                .body(Map.of("error", "文件上传失败: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * 上传多张图片并自动合并为PDF
+     */
+    @PostMapping("/assignment/{assignmentId}/images")
+    public ResponseEntity<?> submitImages(
+        @PathVariable Long assignmentId,
+        @RequestParam("files") MultipartFile[] files,
+        @RequestParam(required = false) String description,
+        Authentication authentication
+    ) {
+        try {
+            System.out.println("开始处理多图片上传请求（转PDF）...");
+            System.out.println("作业ID: " + assignmentId);
+            System.out.println("上传文件数量: " + files.length);
+            
+            String username = authentication.getName();
+            System.out.println("用户名: " + username);
+            
+            User user = userService.findByUsername(username)
+                .orElseThrow(() -> new RuntimeException("用户不存在"));
+            
+            Assignment assignment = assignmentService.getAssignment(assignmentId);
+            System.out.println("作业标题: " + assignment.getTitle());
+            
+            // 检查是否有文件上传
+            if (files.length == 0) {
+                return ResponseEntity.status(400)
+                    .body(Map.of("error", "请选择至少一张图片"));
+            }
+            
+            // 过滤出图片文件
+            List<MultipartFile> imageFiles = new ArrayList<>();
+            for (MultipartFile file : files) {
+                String contentType = file.getContentType();
+                if (contentType != null && contentType.startsWith("image/")) {
+                    imageFiles.add(file);
+                    System.out.println("添加图片: " + file.getOriginalFilename() + ", 类型: " + contentType);
+                } else {
+                    System.out.println("跳过非图片文件: " + file.getOriginalFilename() + ", 类型: " + contentType);
+                }
+            }
+            
+            if (imageFiles.isEmpty()) {
+                return ResponseEntity.status(400)
+                    .body(Map.of("error", "没有有效的图片文件"));
+            }
+            
+            // 调用服务处理图片上传并合并为PDF
+            Submission submission = submissionService.submitImages(assignment, user, imageFiles, description);
+            System.out.println("图片上传并合并为PDF成功，提交ID: " + submission.getId());
+            
+            return ResponseEntity.ok(submission);
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.out.println("图片上传失败: " + e.getMessage());
+            return ResponseEntity.status(500)
+                .body(Map.of("error", "图片上传失败: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * 上传多张图片但不合并为PDF（用于非PDF限制的作业）
+     */
+    @PostMapping("/assignment/{assignmentId}/raw-images")
+    public ResponseEntity<?> submitRawImages(
+        @PathVariable Long assignmentId,
+        @RequestParam("files") MultipartFile[] files,
+        @RequestParam(required = false) String description,
+        Authentication authentication
+    ) {
+        try {
+            System.out.println("开始处理多图片上传请求（不转PDF）...");
+            System.out.println("作业ID: " + assignmentId);
+            System.out.println("上传文件数量: " + files.length);
+            
+            String username = authentication.getName();
+            System.out.println("用户名: " + username);
+            
+            User user = userService.findByUsername(username)
+                .orElseThrow(() -> new RuntimeException("用户不存在"));
+            
+            Assignment assignment = assignmentService.getAssignment(assignmentId);
+            System.out.println("作业标题: " + assignment.getTitle());
+            
+            // 检查作业是否允许非PDF格式
+            if ("pdf".equals(assignment.getFileFormat())) {
+                return ResponseEntity.status(400)
+                    .body(Map.of("error", "该作业只允许提交PDF格式文件"));
+            }
+            
+            // 检查是否有文件上传
+            if (files.length == 0) {
+                return ResponseEntity.status(400)
+                    .body(Map.of("error", "请选择至少一张图片"));
+            }
+            
+            // 过滤出图片文件
+            List<MultipartFile> imageFiles = new ArrayList<>();
+            for (MultipartFile file : files) {
+                String contentType = file.getContentType();
+                if (contentType != null && contentType.startsWith("image/")) {
+                    imageFiles.add(file);
+                    System.out.println("添加图片: " + file.getOriginalFilename() + ", 类型: " + contentType);
+                } else {
+                    System.out.println("跳过非图片文件: " + file.getOriginalFilename() + ", 类型: " + contentType);
+                }
+            }
+            
+            if (imageFiles.isEmpty()) {
+                return ResponseEntity.status(400)
+                    .body(Map.of("error", "没有有效的图片文件"));
+            }
+            
+            // 调用服务处理图片上传（不合并为PDF）
+            Submission submission = submissionService.submitRawImages(assignment, user, imageFiles, description);
+            System.out.println("图片上传成功，提交ID: " + submission.getId());
+            
+            return ResponseEntity.ok(submission);
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.out.println("图片上传失败: " + e.getMessage());
+            return ResponseEntity.status(500)
+                .body(Map.of("error", "图片上传失败: " + e.getMessage()));
+        }
+    }
+    
+    /**
+     * 上传其他格式文件（用于非PDF限制的作业）
+     */
+    @PostMapping("/assignment/{assignmentId}/other")
+    public ResponseEntity<?> submitOtherFile(
+        @PathVariable Long assignmentId,
+        @RequestParam("file") MultipartFile file,
+        @RequestParam(required = false) String description,
+        Authentication authentication
+    ) {
+        try {
+            System.out.println("开始处理其他格式文件上传请求...");
+            System.out.println("作业ID: " + assignmentId);
+            System.out.println("文件名: " + file.getOriginalFilename());
+            System.out.println("文件大小: " + file.getSize());
+            System.out.println("文件类型: " + file.getContentType());
+            
+            String username = authentication.getName();
+            System.out.println("用户名: " + username);
+            
+            User user = userService.findByUsername(username)
+                .orElseThrow(() -> new RuntimeException("用户不存在"));
+            
+            Assignment assignment = assignmentService.getAssignment(assignmentId);
+            System.out.println("作业标题: " + assignment.getTitle());
+            
+            // 检查作业是否允许非PDF格式
+            if ("pdf".equals(assignment.getFileFormat())) {
+                System.out.println("作业要求PDF格式: " + assignment.getTitle());
+                return ResponseEntity.status(400)
+                    .body(Map.of("error", "该作业只允许提交PDF格式文件"));
+            }
+            
+            // 检查文件大小
+            if (file.getSize() > 20 * 1024 * 1024) {
+                System.out.println("文件过大: " + file.getSize());
+                return ResponseEntity.status(400)
+                    .body(Map.of("error", "文件大小不能超过20MB"));
+            }
+            
+            // 调用服务处理其他格式文件上传
+            Submission submission = submissionService.submitOtherFile(assignment, user, file, description);
             System.out.println("文件上传成功，提交ID: " + submission.getId());
             
             return ResponseEntity.ok(submission);

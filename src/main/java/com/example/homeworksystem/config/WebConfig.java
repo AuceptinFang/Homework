@@ -9,10 +9,16 @@ public class WebConfig implements WebMvcConfigurer {
     @Override
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/**")
-                .allowedOrigins("https://auceptinfang.github.io")
+                .allowedOrigins(
+                    "https://auceptinfang.github.io", 
+                    "http://localhost:3000", 
+                    "http://localhost:5173", 
+                    "http://134.175.229.249",
+                    "http://134.175.229.249:80"
+                )
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
                 .allowedHeaders("Authorization", "Content-Type", "X-Requested-With")
-                .exposedHeaders("Authorization")
+                .exposedHeaders("Authorization", "Content-Disposition")
                 .allowCredentials(true)
                 .maxAge(3600);
     }

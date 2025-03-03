@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.HashMap;
 import java.util.Map;
 import org.springframework.web.bind.annotation.CrossOrigin;
-@CrossOrigin(origins = {"https://auceptinfang.github.io", "https://api.allorigins.win"}, allowCredentials = "true")
+@CrossOrigin
 @RestController
 @RequestMapping("/api")
 public class TestController {

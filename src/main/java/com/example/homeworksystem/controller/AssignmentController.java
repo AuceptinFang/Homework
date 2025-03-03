@@ -12,7 +12,8 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
-
+import org.springframework.web.bind.annotation.CrossOrigin;
+@CrossOrigin
 @RestController
 @RequestMapping("/api/assignments")
 public class AssignmentController {

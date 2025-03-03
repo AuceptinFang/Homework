@@ -8,13 +8,19 @@
 -- 创建管理员账号 (密码: admin123)
 -- 注意：密码使用BCrypt加密，这是实际的admin123加密后的值
 INSERT INTO users (username, password, is_admin) 
-VALUES ('admin', '$2a$10$QFjYSS51FWhyyRTdMjbuMOjAl23mj7nWCOKjGEN0daMuGILdDD5vq', true);
+VALUES ('admin', '$2a$10$QFjYSS51FWhyyRTdMjbuMOjAl23mj7nWCOKjGEN0daMuGILdDD5vq', true)
+ON DUPLICATE KEY UPDATE username = username;
 
--- 创建示例作业
+-- 创建示例作业（仅当表为空时插入）
 INSERT INTO assignments (title, description, deadline, create_time, created_by, allow_submit, file_format) 
-VALUES 
-('第一次作业', '请提交PDF格式的实验报告', DATE_ADD(NOW(), INTERVAL 7 DAY), NOW(), 1, true, 'pdf'),
-('第二次作业', '请提交PDF格式的课程设计文档', DATE_ADD(NOW(), INTERVAL 14 DAY), NOW(), 1, true, 'pdf');
+SELECT '第一次作业', '请提交PDF格式的实验报告', DATE_ADD(NOW(), INTERVAL 7 DAY), NOW(), 1, true, 'pdf'
+FROM dual
+WHERE NOT EXISTS (SELECT 1 FROM assignments WHERE title = '第一次作业');
+
+INSERT INTO assignments (title, description, deadline, create_time, created_by, allow_submit, file_format) 
+SELECT '第二次作业', '请提交PDF格式的课程设计文档', DATE_ADD(NOW(), INTERVAL 14 DAY), NOW(), 1, true, 'pdf'
+FROM dual
+WHERE NOT EXISTS (SELECT 1 FROM assignments WHERE title = '第二次作业');
 
 -- 插入普通用户（初始密码为NULL，需要注册设置）
 INSERT INTO users (username, password, is_admin)
